@@ -1,0 +1,600 @@
+options:
+  parameters:
+    author: ''
+    catch_exceptions: 'True'
+    category: GPS Lab
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Tracking EPB + stock despread multiply + stock C/N0 meter
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: hb
+    hier_block_src_path: '.:'
+    id: gps_track_channel
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: GPS tracking channel
+    window_size: (1200,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 8
+    - 8
+    rotation: 0
+    state: enabled
+blocks:
+- name: samp_rate
+  id: parameter
+  parameters:
+    comment: ''
+    label: Sample rate
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: 2.048e6
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 200
+    - 12
+    rotation: 0
+    state: enabled
+- name: ch
+  id: parameter
+  parameters:
+    comment: accepts only assign messages for this channel
+    label: Channel
+    short_id: ''
+    hide: none
+    type: intx
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 340
+    - 12
+    rotation: 0
+    state: enabled
+- name: dll_gain
+  id: parameter
+  parameters:
+    comment: ''
+    label: DLL gain
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '0.3'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 460
+    - 12
+    rotation: 0
+    state: enabled
+- name: fll_gain
+  id: parameter
+  parameters:
+    comment: ''
+    label: FLL gain
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '0.05'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 600
+    - 12
+    rotation: 0
+    state: enabled
+- name: fll_narrow
+  id: parameter
+  parameters:
+    comment: 'live-adjustable: 0.01 ~ 2.5 Hz, 0.02 ~ 5 Hz, 0.05 ~ 13 Hz loop bandwidth'
+    label: FLL gain after lock
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '0.05'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 740
+    - 12
+    rotation: 0
+    state: enabled
+- name: in0_iq
+  id: pad_source
+  parameters:
+    comment: ''
+    label: iq
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 160
+    rotation: 0
+    state: enabled
+- name: in1_assign
+  id: pad_source
+  parameters:
+    comment: ''
+    label: assign
+    type: message
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 300
+    rotation: 0
+    state: enabled
+- name: trk
+  id: epy_block
+  parameters:
+    comment: 'Closed loop (must stay Python): NCOs, E/P/L/N correlators, DLL, FLL, lock decision'
+    _source_code: |
+      """
+      GPS tracking channel (Embedded Python Block) - the part that must stay in Python
+
+      The code and carrier NCOs, the E/P/L/N correlators and the DLL/FLL updates form a
+      1 ms closed loop: the correlator outputs steer the replica that produces them.
+      GNU Radio stream connections cannot carry sample-level feedback, so the loop lives
+      here. Everything else is exposed so stock blocks can do it and you can probe it.
+
+      Input : complex 2.048 MS/s (one 1 ms block = 2048 samples).
+      Outputs: 0  replica   complex, 2.048 MS/s  prompt C/A replica (+-1); 1.0 when idle
+               1  P         complex, 1 kHz       prompt correlator (carrier wiped)
+               2  E         complex, 1 kHz       early (1/2 chip)
+               3  L         complex, 1 kHz       late  (1/2 chip)
+               4  N         complex, 1 kHz       other-PRN correlator = noise reference
+               5  dll_err   float,   1 kHz       DLL discriminator (chips)
+               6  freq      float,   1 kHz       FLL frequency estimate (Hz)
+      Message in 'assign' : {'ch','prn','f','s_ref'} from the decider (only own ch taken)
+      Message out 'status': {'event': 'assigned' | 'lost', 'ch', 'prn'}
+      """
+      import time
+      import numpy as np
+      from gnuradio import gr
+      import pmt
+
+      L1 = 1575.42e6
+      G2_TAPS = {1: (2, 6), 2: (3, 7), 3: (4, 8), 4: (5, 9), 5: (1, 9), 6: (2, 10),
+                 7: (1, 8), 8: (2, 9), 9: (3, 10), 10: (2, 3), 11: (3, 4), 12: (5, 6),
+                 13: (6, 7), 14: (7, 8), 15: (8, 9), 16: (9, 10), 17: (1, 4), 18: (2, 5),
+                 19: (3, 6), 20: (4, 7), 21: (5, 8), 22: (6, 9), 23: (1, 3), 24: (4, 6),
+                 25: (5, 7), 26: (6, 8), 27: (7, 9), 28: (8, 10), 29: (1, 6), 30: (2, 7),
+                 31: (3, 8), 32: (4, 9)}
+
+
+      def ca_code(prn):
+          g1, g2 = [1] * 10, [1] * 10
+          a, b = G2_TAPS[prn]
+          out = np.empty(1023, np.float32)
+          for i in range(1023):
+              out[i] = 1 - 2 * (g1[9] ^ g2[a - 1] ^ g2[b - 1])
+              g1 = [g1[2] ^ g1[9]] + g1[:9]
+              g2 = [g2[1] ^ g2[2] ^ g2[5] ^ g2[7] ^ g2[8] ^ g2[9]] + g2[:9]
+          return out
+
+
+      class blk(gr.basic_block):
+          """GPS tracking channel: carrier-aided DLL + FLL, replica and correlator outputs"""
+
+          def __init__(self, samp_rate=2.048e6, ch=0, dll_gain=0.3, fll_gain=0.05,
+                       lost_cn0=30.0, fll_narrow=0.05, pull_in_ms=300):
+              gr.basic_block.__init__(
+                  self, name='GPS tracking channel', in_sig=[np.complex64],
+                  out_sig=[np.complex64, np.complex64, np.complex64, np.complex64,
+                           np.complex64, np.float32, np.float32])
+              self.fs = float(samp_rate)
+              self.N = int(round(self.fs * 1e-3))
+              self.ch = int(ch)
+              self.kd, self.kf = float(dll_gain), float(fll_gain)
+              # FLL: wide (fll_gain, ~13 Hz noise bandwidth) to pull in, then narrow (fll_narrow,
+              # ~2.5 Hz). Narrow matters for the nav bits: with the wide loop the frequency
+              # wanders ~7 Hz at 40 dB-Hz, which turns the phase ~50 deg rms per 20 ms bit and
+              # causes differential-detection errors.
+              # fll_narrow is read every ms, so a GRC slider can change it live (callback sets it)
+              self.fll_narrow, self.pull_in = float(fll_narrow), int(pull_in_ms)
+              self.lost_ratio = 1.0 + 10 ** (lost_cn0 / 10) * 1e-3
+              self.cps0 = 1.023e6 / self.fs
+              self.codes = {p: ca_code(p) for p in range(1, 33)}
+              self.n_f = np.arange(self.N, dtype=np.float64)
+              self.n_ext = np.arange(-1, self.N + 1, dtype=np.float64)
+              self.M = np.empty((4, self.N), np.float32)
+              self.st = None
+              self.pending = None
+              self.t_print = time.time()
+              self.set_output_multiple(16 * self.N)  # 16 ms per call: Python call overhead amortised
+              self.message_port_register_in(pmt.intern('assign'))
+              self.set_msg_handler(pmt.intern('assign'), self._assign)
+              self.message_port_register_out(pmt.intern('status'))
+
+          def _assign(self, msg):
+              d = pmt.to_python(msg)
+              if isinstance(d, dict) and int(d.get('ch', -1)) == self.ch:
+                  self.pending = d
+
+          def forecast(self, noutput_items, ninputs):
+              return [noutput_items]
+
+          def _status(self, event, prn):
+              self.message_port_pub(pmt.intern('status'), pmt.to_pmt(
+                  {'event': event, 'ch': self.ch, 'prn': int(prn)}))
+
+          def general_work(self, input_items, output_items):
+              x = input_items[0]
+              N = self.N
+              n_ms = min(len(x) // N, len(output_items[0]) // N,
+                         *[len(o) for o in output_items[1:]])
+              s0 = self.nitems_read(0)
+              o = output_items
+              if self.st is None and self.pending is None:          # idle: one bulk write
+                  o[0][:n_ms * N] = 1.0
+                  for i in range(1, 7):
+                      o[i][:n_ms] = 0
+              else:
+                  tel = np.zeros((6, n_ms), np.complex64)          # E P L N err f
+                  for k in range(n_ms):
+                      if self.pending is not None:
+                          self._start(self.pending, s0 + k * N)
+                          self.pending = None
+                      if self.st is None:
+                          o[0][k * N:(k + 1) * N] = 1.0
+                          continue
+                      f_now = self.st['f']
+                      E, P, L, Nn, err, rep = self._track(x[k * N:(k + 1) * N])
+                      o[0][k * N:(k + 1) * N] = rep
+                      tel[:, k] = (E, P, L, Nn, err, f_now)
+                  o[1][:n_ms], o[2][:n_ms], o[3][:n_ms], o[4][:n_ms] = tel[1], tel[0], tel[2], tel[3]
+                  o[5][:n_ms], o[6][:n_ms] = tel[4].real, tel[5].real
+              self.consume(0, n_ms * N)
+              self.produce(0, n_ms * N)
+              for i in range(1, 7):
+                  self.produce(i, n_ms)
+              if time.time() - self.t_print > 2.0:
+                  self.t_print = time.time()
+                  if self.st is not None:
+                      print('[TRK ch%d] PRN %02d %+6.0f Hz' % (self.ch, self.st['prn'], self.st['f']),
+                            flush=True)
+              return gr.WORK_CALLED_PRODUCE
+
+          def _start(self, d, s):
+              f = float(d['f'])
+              cps = self.cps0 * (1 + f / L1)
+              phase = ((s - int(d['s_ref'])) * cps) % 1023
+              prn = int(d['prn'])
+              self.st = dict(prn=prn, f=f, f_tab=None, rot=None, theta=0.0, phase=phase,
+                             p_prev=None, pp=None, nn=None, age=0,
+                             ncode=self.codes[prn % 32 + 1])
+              self._status('assigned', prn)
+
+          def _track(self, seg):
+              st, N, M = self.st, self.N, self.M
+              code = self.codes[st['prn']]
+              cps = self.cps0 * (1 + st['f'] / L1)
+              ip = (st['phase'] + 1023.0 + self.n_ext * cps).astype(np.int32)
+              pcx = code.take(ip, mode='wrap')
+              M[0], M[1], M[2] = pcx[2:], pcx[1:-1], pcx[:-2]
+              M[3] = st['ncode'].take(ip[1:-1], mode='wrap')
+              if st['f_tab'] is None or abs(st['f'] - st['f_tab']) > 5.0:
+                  st['f_tab'] = st['f']
+                  st['rot'] = np.exp(-2j * np.pi * st['f_tab'] / self.fs * self.n_f).astype(np.complex64)
+              bb = seg * (st['rot'] * np.complex64(np.exp(-1j * st['theta'])))
+              r = M @ bb.view(np.float32).reshape(N, 2)
+              E, P, L, Nn = r[:, 0] + 1j * r[:, 1]
+              aE, aL = abs(E), abs(L)
+              err = 0.5 * (aE - aL) / (aE + aL + 1e-20)
+              if st['p_prev'] is not None:
+                  z = P * np.conj(st['p_prev'])
+                  if z.real != 0.0:
+                      kf = self.kf if st['age'] < self.pull_in else float(self.fll_narrow)
+                      st['f'] += kf * np.arctan(z.imag / z.real) / (2 * np.pi * 1e-3)
+              st['p_prev'] = P
+              st['theta'] = (st['theta'] + 2 * np.pi * st['f_tab'] * N / self.fs) % (2 * np.pi)
+              st['phase'] = (st['phase'] + N * cps + self.kd * err) % 1023
+              a = 0.02
+              pp, nn = abs(P) ** 2, abs(Nn) ** 2
+              st['pp'] = pp if st['pp'] is None else (1 - a) * st['pp'] + a * pp
+              st['nn'] = nn if st['nn'] is None else (1 - a) * st['nn'] + a * nn
+              st['age'] += 1
+              rep = M[1]
+              if st['age'] > 500 and st['pp'] / st['nn'] < self.lost_ratio:
+                  print('[LOST] PRN %02d on ch%d' % (st['prn'], self.ch), flush=True)
+                  self._status('lost', st['prn'])
+                  self.st = None
+              return E, P, L, Nn, err, rep
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samp_rate: samp_rate
+    ch: ch
+    dll_gain: dll_gain
+    fll_gain: fll_gain
+    lost_cn0: '30.0'
+    fll_narrow: fll_narrow
+    pull_in_ms: '300'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 220
+    - 160
+    rotation: 0
+    state: enabled
+- name: despread
+  id: blocks_multiply_xx
+  parameters:
+    comment: input x prompt replica = DESPREAD (carrier kept)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 560
+    - 120
+    rotation: 0
+    state: enabled
+- name: cn0m
+  id: gps_cn0_meter
+  parameters:
+    comment: stock C/N0 meter (nested hier)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    alpha: '0.02'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 620
+    - 420
+    rotation: 0
+    state: enabled
+- name: out0_desp
+  id: pad_sink
+  parameters:
+    comment: 2.048 MS/s
+    label: despread
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 120
+    rotation: 0
+    state: enabled
+- name: out1_p
+  id: pad_sink
+  parameters:
+    comment: 1 kHz
+    label: P
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 200
+    rotation: 0
+    state: enabled
+- name: out2_e
+  id: pad_sink
+  parameters:
+    comment: 1 kHz
+    label: E
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 260
+    rotation: 0
+    state: enabled
+- name: out3_l
+  id: pad_sink
+  parameters:
+    comment: 1 kHz
+    label: L
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 320
+    rotation: 0
+    state: enabled
+- name: out4_err
+  id: pad_sink
+  parameters:
+    comment: chips, 1 kHz
+    label: dll_err
+    type: float
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 380
+    rotation: 0
+    state: enabled
+- name: out5_f
+  id: pad_sink
+  parameters:
+    comment: Hz, 1 kHz
+    label: freq
+    type: float
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 440
+    rotation: 0
+    state: enabled
+- name: out6_cn0
+  id: pad_sink
+  parameters:
+    comment: dB-Hz, 1 kHz
+    label: cn0
+    type: float
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 500
+    rotation: 0
+    state: enabled
+- name: out7_status
+  id: pad_sink
+  parameters:
+    comment: ''
+    label: status
+    type: message
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 580
+    rotation: 0
+    state: enabled
+connections:
+- - in0_iq
+  - '0'
+  - trk
+  - '0'
+- - in0_iq
+  - '0'
+  - despread
+  - '0'
+- - trk
+  - '0'
+  - despread
+  - '1'
+- - despread
+  - '0'
+  - out0_desp
+  - '0'
+- - trk
+  - '1'
+  - out1_p
+  - '0'
+- - trk
+  - '2'
+  - out2_e
+  - '0'
+- - trk
+  - '3'
+  - out3_l
+  - '0'
+- - trk
+  - '5'
+  - out4_err
+  - '0'
+- - trk
+  - '6'
+  - out5_f
+  - '0'
+- - trk
+  - '1'
+  - cn0m
+  - '0'
+- - trk
+  - '4'
+  - cn0m
+  - '1'
+- - cn0m
+  - '0'
+  - out6_cn0
+  - '0'
+- - in1_assign
+  - out
+  - trk
+  - assign
+- - trk
+  - status
+  - out7_status
+  - in
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2

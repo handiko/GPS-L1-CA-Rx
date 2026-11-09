@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="600" viewBox="0 0 1180 600" font-family="DejaVu Sans, Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker></defs>
+<rect width="1180" height="600" fill="#ffffff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#111827">Inside gps_track_channel: the 1 ms loop that has to stay in Python</text>
+<rect x="20" y="55" width="1140" height="525" rx="10" fill="#ecfdf5" fill-opacity="0.45" stroke="#059669" stroke-width="1.2" stroke-dasharray="6,4"/>
+<text x="30" y="73" font-size="12" font-weight="bold" fill="#059669">gps_track_channel (hier block)</text>
+<rect x="40" y="85" width="820" height="360" rx="10" fill="#fef2f2" fill-opacity="0.45" stroke="#dc2626" stroke-width="1.2" stroke-dasharray="6,4"/>
+<text x="50" y="103" font-size="12" font-weight="bold" fill="#dc2626">Tracking EPB (closed loop, runs once per 1 ms block of 2048 samples)</text>
+<rect x="60" y="150" width="110" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="115.0" y="176.5" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">iq block</text>
+<text x="115.0" y="191.5" font-size="9.5" text-anchor="middle" fill="#374151">2048 samples</text>
+<rect x="200" y="140" width="150" height="80" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="275.0" y="176.5" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Carrier wipe-off</text>
+<text x="275.0" y="191.5" font-size="9.5" text-anchor="middle" fill="#374151">x e^-j(2pi f t + theta)</text>
+<rect x="385" y="120" width="200" height="120" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="485.0" y="154.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Correlators</text>
+<text x="485.0" y="169.0" font-size="9.5" text-anchor="middle" fill="#374151">E: replica 1/2 chip early</text>
+<text x="485.0" y="184.0" font-size="9.5" text-anchor="middle" fill="#374151">P: replica on time</text>
+<text x="485.0" y="199.0" font-size="9.5" text-anchor="middle" fill="#374151">L: replica 1/2 chip late</text>
+<text x="485.0" y="214.0" font-size="9.5" text-anchor="middle" fill="#374151">N: other PRN (noise ref)</text>
+<rect x="625" y="110" width="210" height="55" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="730.0" y="134.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">DLL</text>
+<text x="730.0" y="149.0" font-size="9.5" text-anchor="middle" fill="#374151">e = 1/2 (|E|-|L|)/(|E|+|L|)</text>
+<rect x="625" y="180" width="210" height="55" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="730.0" y="204.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">FLL</text>
+<text x="730.0" y="219.0" font-size="9.5" text-anchor="middle" fill="#374151">dphi = atan(cross/dot), P(k) P*(k-1)</text>
+<rect x="625" y="250" width="210" height="55" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="730.0" y="274.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Lock detector</text>
+<text x="730.0" y="289.0" font-size="9.5" text-anchor="middle" fill="#374151">|P|^2/|N|^2 &lt; 2 for 0.5 s -&gt; lost</text>
+<rect x="385" y="330" width="200" height="70" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="485.0" y="354.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Code NCO</text>
+<text x="485.0" y="369.0" font-size="9.5" text-anchor="middle" fill="#374151">rate = 1.023 MHz (1 + f/L1)</text>
+<text x="485.0" y="384.0" font-size="9.5" text-anchor="middle" fill="#374151">(carrier aided)</text>
+<path d="M170,180 L198,180" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M350,180 L383,180" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M585,140 L623,137" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M585,180 L623,207" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M585,220 L623,277" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M835,207 L850,207 L850,420 L275,420 L275,222" fill="none" stroke="#dc2626" stroke-width="1.6"  marker-end="url(#r)"/>
+<text x="300" y="436" font-size="10.5" fill="#dc2626">frequency feedback</text>
+<path d="M835,137 L845,137 L845,365 L587,365" fill="none" stroke="#dc2626" stroke-width="1.6"  marker-end="url(#r)"/>
+<text x="640" y="380" font-size="10.5" fill="#dc2626">code-phase feedback</text>
+<path d="M485,330 L485,242" fill="none" stroke="#dc2626" stroke-width="1.6"  marker-end="url(#r)"/>
+<rect x="900" y="110" width="230" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="1015.0" y="136.5" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Multiply (stock)</text>
+<text x="1015.0" y="151.5" font-size="9.5" text-anchor="middle" fill="#374151">iq x prompt replica = DESPREAD</text>
+<rect x="900" y="300" width="230" height="80" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.4"/>
+<text x="1015.0" y="329.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">gps_cn0_meter (hier)</text>
+<text x="1015.0" y="344.0" font-size="9.5" text-anchor="middle" fill="#374151">|P|^2, |N|^2 -&gt; IIR -&gt; ratio</text>
+<text x="1015.0" y="359.0" font-size="9.5" text-anchor="middle" fill="#374151">-&gt; 10 log10(SNR/1 ms)</text>
+<path d="M585,345 L880,345 L880,140 L898,140" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<text x="760" y="338" font-size="10.5" fill="#374151">replica</text>
+<path d="M585,243 L865,243 L865,325 L898,325" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<text x="870" y="290" font-size="10.5" fill="#374151">P, N</text>
+<rect x="60" y="470" width="1060" height="90" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="590.0" y="504.0" font-size="11.5" font-weight="bold" text-anchor="middle" fill="#111827">What comes out (every one a probe)</text>
+<text x="590.0" y="519.0" font-size="10.0" text-anchor="middle" fill="#374151">despread (2.048 MS/s) -&gt; spectrum line at the Doppler  |  P, E, L (1 kHz) -&gt; constellation, |E| |P| |L|</text>
+<text x="590.0" y="534.0" font-size="10.0" text-anchor="middle" fill="#374151">dll_err (chips) and freq (Hz) -&gt; time plots  |  cn0 (dB-Hz) -&gt; number sink  |  status msg -&gt; decider, scheduler, nav decoder</text>
+</svg>

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="470" viewBox="0 0 1180 470" font-family="DejaVu Sans, Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker></defs>
+<rect width="1180" height="470" fill="#ffffff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#111827">Inside gps_nav_bits: from 1 ms correlator dumps to tagged 50 bit/s data (all stock)</text>
+<rect x="20" y="55" width="940" height="395" rx="10" fill="#ecfdf5" fill-opacity="0.45" stroke="#059669" stroke-width="1.2" stroke-dasharray="6,4"/>
+<text x="30" y="73" font-size="12" font-weight="bold" fill="#059669">gps_nav_bits (hier block)</text>
+<rect x="40" y="160" width="110" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="95.0" y="186.5" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">P (1 kHz)</text>
+<text x="95.0" y="201.5" font-size="9.5" text-anchor="middle" fill="#374151">prompt dumps</text>
+<rect x="175" y="160" width="120" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="235.0" y="186.5" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Moving Avg</text>
+<text x="235.0" y="201.5" font-size="9.5" text-anchor="middle" fill="#374151">length 20 (sum)</text>
+<text x="330" y="95" font-size="11.5" fill="#059669" text-anchor="start" font-weight="bold">bit sync: where are the 20 ms bit edges?</text>
+<rect x="330" y="105" width="90" height="50" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="375.0" y="134.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Mag^2</text>
+<rect x="440" y="105" width="110" height="50" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="495.0" y="126.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Stream to</text>
+<text x="495.0" y="141.5" font-size="9.0" text-anchor="middle" fill="#374151">Vector (20)</text>
+<rect x="570" y="105" width="110" height="50" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="625.0" y="126.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Single Pole</text>
+<text x="625.0" y="141.5" font-size="9.0" text-anchor="middle" fill="#374151">IIR (vlen 20)</text>
+<rect x="700" y="105" width="90" height="50" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="745.0" y="134.0" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Argmax</text>
+<rect x="810" y="105" width="130" height="50" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="875.0" y="126.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Probe + Function</text>
+<text x="875.0" y="141.5" font-size="9.0" text-anchor="middle" fill="#374151">Probe (2 Hz)</text>
+<path d="M295,175 L310,175 L310,130 L328,130" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M420,130 L438,130" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M550,130 L568,130" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M680,130 L698,130" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M790,130 L808,130" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<text x="330" y="205" font-size="11.5" fill="#059669" text-anchor="start" font-weight="bold">bit detection: compare each bit with the previous one</text>
+<rect x="330" y="220" width="110" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="385.0" y="246.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Keep 1 in 20</text>
+<text x="385.0" y="261.5" font-size="9.0" text-anchor="middle" fill="#374151">offset = bit_phase</text>
+<rect x="460" y="220" width="120" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="520.0" y="246.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">S(k) x conj</text>
+<text x="520.0" y="261.5" font-size="9.0" text-anchor="middle" fill="#374151">(S(k-1)) via Delay</text>
+<rect x="600" y="220" width="100" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="650.0" y="246.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Re, x(-1)</text>
+<text x="650.0" y="261.5" font-size="9.0" text-anchor="middle" fill="#374151">&lt;0 = flip</text>
+<rect x="720" y="220" width="100" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="770.0" y="246.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Binary</text>
+<text x="770.0" y="261.5" font-size="9.0" text-anchor="middle" fill="#374151">Slicer</text>
+<rect x="840" y="220" width="100" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="890.0" y="246.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Diff</text>
+<text x="890.0" y="261.5" font-size="9.0" text-anchor="middle" fill="#374151">Encoder (mod 2)</text>
+<path d="M295,200 L310,200 L310,250 L328,250" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M875,155 L875,185 L385,185 L385,218" fill="none" stroke="#d97706" stroke-width="1.6" stroke-dasharray="6,4" marker-end="url(#m)"/>
+<text x="600" y="180" font-size="10.5" fill="#d97706">bit_phase variable</text>
+<path d="M440,250 L458,250" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M580,250 L598,250" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M700,250 L718,250" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M820,250 L838,250" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<rect x="600" y="330" width="160" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="680.0" y="356.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Correlate Access</text>
+<text x="680.0" y="371.5" font-size="9.0" text-anchor="middle" fill="#374151">Code - Tag '10001011'</text>
+<rect x="780" y="330" width="160" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="860.0" y="356.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Correlate Access</text>
+<text x="860.0" y="371.5" font-size="9.0" text-anchor="middle" fill="#374151">Code - Tag '01110100'</text>
+<path d="M890,280 L890,300 L680,300 L680,328" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<path d="M760,360 L778,360" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<rect x="330" y="330" width="230" height="60" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/>
+<text x="445.0" y="356.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">soft: cos(phase change)</text>
+<text x="445.0" y="371.5" font-size="9.0" text-anchor="middle" fill="#374151">for the display only</text>
+<path d="M520,280 L520,310 L445,310 L445,328" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<rect x="990" y="300" width="170" height="90" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="1075.0" y="326.5" font-size="11.0" font-weight="bold" text-anchor="middle" fill="#111827">Nav decoder (EPB)</text>
+<text x="1075.0" y="341.5" font-size="9.5" text-anchor="middle" fill="#374151">parity, frame sync,</text>
+<text x="1075.0" y="356.5" font-size="9.5" text-anchor="middle" fill="#374151">TOW, subframe ID,</text>
+<text x="1075.0" y="371.5" font-size="9.5" text-anchor="middle" fill="#374151">week -&gt; UTC</text>
+<path d="M940,360 L988,345" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+<text x="944" y="338" font-size="10.5" fill="#374151">bits + tags</text>
+<rect x="990" y="110" width="170" height="140" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="1.4"/>
+<text x="1075.0" y="146.5" font-size="10.5" font-weight="bold" text-anchor="middle" fill="#111827">Why differential?</text>
+<text x="1075.0" y="161.5" font-size="9.0" text-anchor="middle" fill="#374151">The FLL locks frequency,</text>
+<text x="1075.0" y="176.5" font-size="9.0" text-anchor="middle" fill="#374151">not phase, so P slowly</text>
+<text x="1075.0" y="191.5" font-size="9.0" text-anchor="middle" fill="#374151">rotates. Comparing a bit</text>
+<text x="1075.0" y="206.5" font-size="9.0" text-anchor="middle" fill="#374151">with the previous one</text>
+<text x="1075.0" y="221.5" font-size="9.0" text-anchor="middle" fill="#374151">ignores that rotation.</text>
+<path d="M150,190 L173,190" fill="none" stroke="#374151" stroke-width="1.6"  marker-end="url(#a)"/>
+</svg>

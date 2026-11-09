@@ -1,0 +1,716 @@
+options:
+  parameters:
+    author: ''
+    catch_exceptions: 'True'
+    category: GPS Lab
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Bit sync + differential bit detection + preamble tagging, stock blocks only
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: hb
+    hier_block_src_path: '.:'
+    id: gps_nav_bits
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: GPS nav bits
+    window_size: (1200,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 8
+    - 8
+    rotation: 0
+    state: enabled
+blocks:
+- name: alpha
+  id: parameter
+  parameters:
+    comment: 'per 20 ms update: 0.05 = ~0.4 s'
+    label: Bit-sync smoothing
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '0.05'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 200
+    - 12
+    rotation: 0
+    state: enabled
+- name: in0_p
+  id: pad_source
+  parameters:
+    comment: prompt correlator, 1 kHz
+    label: P
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 200
+    rotation: 0
+    state: enabled
+- name: msum
+  id: blocks_moving_average_xx
+  parameters:
+    comment: running 20 ms sum of P (one bit long)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    length: '20'
+    scale: '1'
+    max_iter: '4000'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 160
+    - 190
+    rotation: 0
+    state: enabled
+- name: m2
+  id: blocks_complex_to_mag_squared
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 360
+    - 300
+    rotation: 0
+    state: enabled
+- name: s2v
+  id: blocks_stream_to_vector
+  parameters:
+    comment: 20 alignments side by side
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    num_items: '20'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 520
+    - 300
+    rotation: 0
+    state: enabled
+- name: hist
+  id: single_pole_iir_filter_xx
+  parameters:
+    comment: energy per alignment, smoothed
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    alpha: alpha
+    vlen: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 700
+    - 300
+    rotation: 0
+    state: enabled
+- name: amax
+  id: blocks_argmax_xx
+  parameters:
+    comment: best alignment = bit phase
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    num_inputs: '1'
+    vlen: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 300
+    rotation: 0
+    state: enabled
+- name: probe
+  id: blocks_probe_signal_x
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: short
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1080
+    - 290
+    rotation: 0
+    state: enabled
+- name: null_s
+  id: blocks_null_sink
+  parameters:
+    comment: ''
+    type: short
+    vlen: '1'
+    num_inputs: '1'
+    bus_structure_sink: '[[0,],]'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1080
+    - 350
+    rotation: 0
+    state: enabled
+- name: bit_phase
+  id: variable_function_probe
+  parameters:
+    comment: reads the argmax twice a second -> Keep 1 in 20 offset
+    block_id: probe
+    function_name: level
+    function_args: ''
+    poll_rate: '2'
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1080
+    - 400
+    rotation: 0
+    state: enabled
+- name: keep
+  id: blocks_keep_m_in_n
+  parameters:
+    comment: one sum per bit, at the bit-sync phase
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    m: '1'
+    n: '20'
+    offset: bit_phase
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 360
+    - 180
+    rotation: 0
+    state: enabled
+- name: dly
+  id: blocks_delay
+  parameters:
+    comment: previous bit
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    delay: '1'
+    num_ports: '1'
+    vlen: '1'
+    showports: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 540
+    - 120
+    rotation: 0
+    state: enabled
+- name: mconj
+  id: blocks_multiply_conjugate_cc
+  parameters:
+    comment: S(k) * conj(S(k-1))
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 700
+    - 180
+    rotation: 0
+    state: enabled
+- name: c2r
+  id: blocks_complex_to_real
+  parameters:
+    comment: <0 means the bit flipped
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 880
+    - 180
+    rotation: 0
+    state: enabled
+- name: neg
+  id: blocks_multiply_const_vxx
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: '-1.0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1040
+    - 180
+    rotation: 0
+    state: enabled
+- name: slicer
+  id: digital_binary_slicer_fb
+  parameters:
+    comment: 1 = transition
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1200
+    - 180
+    rotation: 0
+    state: enabled
+- name: denc
+  id: digital_diff_encoder_bb
+  parameters:
+    comment: 'running XOR: transitions -> bits (up to one global inversion)'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    coding: digital.DIFF_DIFFERENTIAL
+    modulus: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1360
+    - 180
+    rotation: 0
+    state: enabled
+- name: tag1
+  id: digital_correlate_access_code_tag_xx
+  parameters:
+    comment: tag every 10001011
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: byte
+    access_code: '10001011'
+    threshold: '0'
+    tagname: preamble
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1540
+    - 180
+    rotation: 0
+    state: enabled
+- name: tag2
+  id: digital_correlate_access_code_tag_xx
+  parameters:
+    comment: tag every 01110100 (inverted)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: byte
+    access_code: '01110100'
+    threshold: '0'
+    tagname: preamble_inv
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1720
+    - 180
+    rotation: 0
+    state: enabled
+- name: cmag
+  id: blocks_complex_to_mag
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 540
+    - 440
+    rotation: 0
+    state: enabled
+- name: dly2
+  id: blocks_delay
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    delay: '1'
+    num_ports: '1'
+    vlen: '1'
+    showports: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 700
+    - 500
+    rotation: 0
+    state: enabled
+- name: mprod
+  id: blocks_multiply_xx
+  parameters:
+    comment: '|S(k)| |S(k-1)|'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 880
+    - 440
+    rotation: 0
+    state: enabled
+- name: eps
+  id: blocks_add_const_vxx
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: 1e-9
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1040
+    - 456
+    rotation: 0
+    state: enabled
+- name: cosd
+  id: blocks_divide_xx
+  parameters:
+    comment: 'cos(phase change): +1 same bit, -1 flip'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    vlen: '1'
+    num_inputs: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1200
+    - 400
+    rotation: 0
+    state: enabled
+- name: hist1
+  id: blocks_add_const_vxx
+  parameters:
+    comment: +1 so an idle channel gives 0 dB, not -inf
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: '[1.0]*20'
+    vlen: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 900
+    - 380
+    rotation: 0
+    state: enabled
+- name: histdb
+  id: blocks_nlog10_ff
+  parameters:
+    comment: energy in dB
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    n: '10'
+    k: '0'
+    vlen: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1080
+    - 380
+    rotation: 0
+    state: enabled
+- name: out0_bits
+  id: pad_sink
+  parameters:
+    comment: 50 bit/s, tagged preambles
+    label: bits
+    type: byte
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1900
+    - 180
+    rotation: 0
+    state: enabled
+- name: out1_soft
+  id: pad_sink
+  parameters:
+    comment: 50 Hz
+    label: soft
+    type: float
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1900
+    - 300
+    rotation: 0
+    state: enabled
+- name: out2_hist
+  id: pad_sink
+  parameters:
+    comment: energy vs alignment in dB, 50 Hz
+    label: bitsync
+    type: float
+    vlen: '20'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1900
+    - 420
+    rotation: 0
+    state: enabled
+connections:
+- - in0_p
+  - '0'
+  - msum
+  - '0'
+- - msum
+  - '0'
+  - m2
+  - '0'
+- - m2
+  - '0'
+  - s2v
+  - '0'
+- - s2v
+  - '0'
+  - hist
+  - '0'
+- - hist
+  - '0'
+  - amax
+  - '0'
+- - amax
+  - '0'
+  - probe
+  - '0'
+- - amax
+  - '1'
+  - null_s
+  - '0'
+- - hist
+  - '0'
+  - hist1
+  - '0'
+- - hist1
+  - '0'
+  - histdb
+  - '0'
+- - histdb
+  - '0'
+  - out2_hist
+  - '0'
+- - msum
+  - '0'
+  - keep
+  - '0'
+- - keep
+  - '0'
+  - mconj
+  - '0'
+- - keep
+  - '0'
+  - dly
+  - '0'
+- - dly
+  - '0'
+  - mconj
+  - '1'
+- - mconj
+  - '0'
+  - c2r
+  - '0'
+- - c2r
+  - '0'
+  - neg
+  - '0'
+- - neg
+  - '0'
+  - slicer
+  - '0'
+- - slicer
+  - '0'
+  - denc
+  - '0'
+- - denc
+  - '0'
+  - tag1
+  - '0'
+- - tag1
+  - '0'
+  - tag2
+  - '0'
+- - tag2
+  - '0'
+  - out0_bits
+  - '0'
+- - keep
+  - '0'
+  - cmag
+  - '0'
+- - cmag
+  - '0'
+  - mprod
+  - '0'
+- - cmag
+  - '0'
+  - dly2
+  - '0'
+- - dly2
+  - '0'
+  - mprod
+  - '1'
+- - mprod
+  - '0'
+  - eps
+  - '0'
+- - c2r
+  - '0'
+  - cosd
+  - '0'
+- - eps
+  - '0'
+  - cosd
+  - '1'
+- - cosd
+  - '0'
+  - out1_soft
+  - '0'
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2

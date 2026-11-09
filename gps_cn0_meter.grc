@@ -1,0 +1,332 @@
+options:
+  parameters:
+    author: ''
+    catch_exceptions: 'True'
+    category: GPS Lab
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: C/N0 from prompt and noise correlators, stock blocks only
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: hb
+    hier_block_src_path: '.:'
+    id: gps_cn0_meter
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: GPS C/N0 meter
+    window_size: (1200,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 8
+    - 8
+    rotation: 0
+    state: enabled
+blocks:
+- name: alpha
+  id: parameter
+  parameters:
+    comment: 0.02 at 1 kHz = ~50 ms
+    label: Smoothing alpha
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '0.02'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 200
+    - 12
+    rotation: 0
+    state: enabled
+- name: in0_p
+  id: pad_source
+  parameters:
+    comment: prompt correlator, 1 kHz
+    label: P
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 120
+    rotation: 0
+    state: enabled
+- name: in1_n
+  id: pad_source
+  parameters:
+    comment: other-PRN correlator = noise only
+    label: N
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 300
+    rotation: 0
+    state: enabled
+- name: pm2
+  id: blocks_complex_to_mag_squared
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 180
+    - 128
+    rotation: 0
+    state: enabled
+- name: nm2
+  id: blocks_complex_to_mag_squared
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 180
+    - 308
+    rotation: 0
+    state: enabled
+- name: pavg
+  id: single_pole_iir_filter_xx
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    alpha: alpha
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 380
+    - 120
+    rotation: 0
+    state: enabled
+- name: navg
+  id: single_pole_iir_filter_xx
+  parameters:
+    comment: ''
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    alpha: alpha
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 380
+    - 300
+    rotation: 0
+    state: enabled
+- name: ratio
+  id: blocks_divide_xx
+  parameters:
+    comment: '|P|^2 / |N|^2 = 1 + SNR(1 ms)'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    vlen: '1'
+    num_inputs: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 580
+    - 200
+    rotation: 0
+    state: enabled
+- name: minus1
+  id: blocks_add_const_vxx
+  parameters:
+    comment: SNR(1 ms)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: '-1.0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 740
+    - 216
+    rotation: 0
+    state: enabled
+- name: floor
+  id: analog_const_source_x
+  parameters:
+    comment: 'floor: SNR >= 1e-3 (0 dB-Hz)'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: 1e-3
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 740
+    - 320
+    rotation: 0
+    state: enabled
+- name: clip
+  id: blocks_max_xx
+  parameters:
+    comment: max(SNR, floor)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+    vlen_out: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 920
+    - 220
+    rotation: 0
+    state: enabled
+- name: db
+  id: blocks_nlog10_ff
+  parameters:
+    comment: 10log10(SNR) + 30 = 10log10(SNR / 1 ms) = C/N0 [dB-Hz]
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    n: '10'
+    k: '30'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1080
+    - 216
+    rotation: 0
+    state: enabled
+- name: out0_cn0
+  id: pad_sink
+  parameters:
+    comment: ''
+    label: cn0
+    type: float
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1260
+    - 216
+    rotation: 0
+    state: enabled
+connections:
+- - in0_p
+  - '0'
+  - pm2
+  - '0'
+- - in1_n
+  - '0'
+  - nm2
+  - '0'
+- - pm2
+  - '0'
+  - pavg
+  - '0'
+- - nm2
+  - '0'
+  - navg
+  - '0'
+- - pavg
+  - '0'
+  - ratio
+  - '0'
+- - navg
+  - '0'
+  - ratio
+  - '1'
+- - ratio
+  - '0'
+  - minus1
+  - '0'
+- - minus1
+  - '0'
+  - clip
+  - '0'
+- - floor
+  - '0'
+  - clip
+  - '1'
+- - clip
+  - '0'
+  - db
+  - '0'
+- - db
+  - '0'
+  - out0_cn0
+  - '0'
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2

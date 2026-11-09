@@ -1,0 +1,445 @@
+options:
+  parameters:
+    author: ''
+    catch_exceptions: 'True'
+    category: GPS Lab
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: FFT parallel code-phase search, one Doppler bin per 20 ms, stock blocks only
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: hb
+    hier_block_src_path: '.:'
+    id: gps_acq_branch
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: GPS acq branch
+    window_size: (1200,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 8
+    - 8
+    rotation: 0
+    state: enabled
+blocks:
+- name: samp_rate
+  id: parameter
+  parameters:
+    comment: ''
+    label: Sample rate
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: 2.048e6
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 200
+    - 12
+    rotation: 0
+    state: enabled
+- name: f_off
+  id: parameter
+  parameters:
+    comment: 'Branch Doppler offset: 0 for whole-kHz bins, -500 for half-kHz bins'
+    label: Pre-mix [Hz]
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 340
+    - 12
+    rotation: 0
+    state: enabled
+- name: n_noncoh
+  id: parameter
+  parameters:
+    comment: ''
+    label: Non-coherent ms
+    short_id: ''
+    hide: none
+    type: intx
+    value: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 480
+    - 12
+    rotation: 0
+    state: enabled
+- name: N
+  id: parameter
+  parameters:
+    comment: 'samp_rate/1000. A parameter, not a variable: GRC sizes hier ports before variables exist'
+    label: Samples per ms
+    short_id: ''
+    hide: none
+    type: intx
+    value: '2048'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 640
+    - 12
+    rotation: 0
+    state: enabled
+- name: in0_iq
+  id: pad_source
+  parameters:
+    comment: ''
+    label: iq
+    type: complex
+    vlen: '1'
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 180
+    rotation: 0
+    state: enabled
+- name: in1_taps
+  id: pad_source
+  parameters:
+    comment: conj(FFT(code)) rotated by m bins (Doppler m kHz), from the scheduler
+    label: taps
+    type: complex
+    vlen: N
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 420
+    rotation: 0
+    state: enabled
+- name: lo
+  id: analog_sig_source_x
+  parameters:
+    comment: fixed pre-mix (half-kHz branch)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    samp_rate: samp_rate
+    waveform: analog.GR_COS_WAVE
+    freq: f_off
+    amp: '1'
+    offset: '0'
+    phase: '0'
+    showports: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 16
+    - 260
+    rotation: 0
+    state: enabled
+- name: mix
+  id: blocks_multiply_xx
+  parameters:
+    comment: x e^(j2pi f_off t)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 220
+    - 200
+    rotation: 0
+    state: enabled
+- name: s2v
+  id: blocks_stream_to_vector
+  parameters:
+    comment: 1 ms blocks (2048 samples)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    num_items: N
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 380
+    - 200
+    rotation: 0
+    state: enabled
+- name: fft_f
+  id: fft_vxx
+  parameters:
+    comment: X = FFT(x), rectangular window
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    fft_size: N
+    forward: 'True'
+    window: '[]'
+    shift: 'False'
+    nthreads: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 560
+    - 180
+    rotation: 0
+    state: enabled
+- name: mult
+  id: blocks_multiply_xx
+  parameters:
+    comment: X * C*  (correlation in frequency domain)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    num_inputs: '2'
+    vlen: N
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 760
+    - 300
+    rotation: 0
+    state: enabled
+- name: fft_r
+  id: fft_vxx
+  parameters:
+    comment: IFFT -> correlation at all 2048 code phases
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    fft_size: N
+    forward: 'False'
+    window: '[]'
+    shift: 'False'
+    nthreads: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 940
+    - 280
+    rotation: 0
+    state: enabled
+- name: mag2
+  id: blocks_complex_to_mag_squared
+  parameters:
+    comment: '|corr|^2'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: N
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1140
+    - 300
+    rotation: 0
+    state: enabled
+- name: norm1
+  id: blocks_multiply_const_vxx
+  parameters:
+    comment: 'normalise: noise mean = 1 (AGC rms 1)'
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: '[1.0/N**3]*N'
+    vlen: N
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1320
+    - 200
+    rotation: 0
+    state: enabled
+- name: integ
+  id: blocks_integrate_xx
+  parameters:
+    comment: sum of 20 ms (non-coherent)
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    decim: n_noncoh
+    vlen: N
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1320
+    - 380
+    rotation: 0
+    state: enabled
+- name: norm20
+  id: blocks_multiply_const_vxx
+  parameters:
+    comment: mean of 20 ms
+    affinity: ''
+    alias: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    const: '[1.0/n_noncoh]*N'
+    vlen: N
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1500
+    - 380
+    rotation: 0
+    state: enabled
+- name: out0_corr1
+  id: pad_sink
+  parameters:
+    comment: 'probe: one 1 ms correlation'
+    label: corr_1ms
+    type: float
+    vlen: N
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1700
+    - 200
+    rotation: 0
+    state: enabled
+- name: out1_corr20
+  id: pad_sink
+  parameters:
+    comment: to the decider (tagged)
+    label: corr_20ms
+    type: float
+    vlen: N
+    num_streams: '1'
+    optional: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1700
+    - 380
+    rotation: 0
+    state: enabled
+connections:
+- - in0_iq
+  - '0'
+  - mix
+  - '0'
+- - lo
+  - '0'
+  - mix
+  - '1'
+- - mix
+  - '0'
+  - s2v
+  - '0'
+- - s2v
+  - '0'
+  - fft_f
+  - '0'
+- - fft_f
+  - '0'
+  - mult
+  - '0'
+- - in1_taps
+  - '0'
+  - mult
+  - '1'
+- - mult
+  - '0'
+  - fft_r
+  - '0'
+- - fft_r
+  - '0'
+  - mag2
+  - '0'
+- - mag2
+  - '0'
+  - norm1
+  - '0'
+- - norm1
+  - '0'
+  - out0_corr1
+  - '0'
+- - norm1
+  - '0'
+  - integ
+  - '0'
+- - integ
+  - '0'
+  - norm20
+  - '0'
+- - norm20
+  - '0'
+  - out1_corr20
+  - '0'
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2
