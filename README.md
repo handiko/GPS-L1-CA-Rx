@@ -2,7 +2,7 @@
 
 *A long, honest walkthrough of my GPS L1 C/A lab: how a cheap dongle, an active antenna, and a pile of GNU Radio blocks can find satellites you cannot see, lock onto them, and read the time they are broadcasting.*
 
-![Code repo here](https://github.com/handiko/GPS-L1-CA-Rx)
+[Code repo here](https://github.com/handiko/GPS-L1-CA-Rx)
 
 ---
 
