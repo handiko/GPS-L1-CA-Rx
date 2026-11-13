@@ -106,6 +106,42 @@ blocks:
     - 12
     rotation: 0
     state: enabled
+- name: pll_on
+  id: parameter
+  parameters:
+    comment: live-switchable
+    label: 'Carrier loop: 1 = PLL, 0 = FLL'
+    short_id: ''
+    hide: none
+    type: intx
+    value: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 880
+    - 12
+    rotation: 0
+    state: enabled
+- name: pll_bw
+  id: parameter
+  parameters:
+    comment: live-adjustable
+    label: PLL bandwidth [Hz]
+    short_id: ''
+    hide: none
+    type: eng_float
+    value: '25'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1020
+    - 12
+    rotation: 0
+    state: enabled
 - name: fll_narrow
   id: parameter
   parameters:
@@ -185,6 +221,8 @@ blocks:
       Message out 'status': {'event': 'assigned' | 'lost', 'ch', 'prn'}
       """
       import time
+      import math
+      import cmath
       import numpy as np
       from gnuradio import gr
       import pmt
@@ -210,10 +248,11 @@ blocks:
 
 
       class blk(gr.basic_block):
-          """GPS tracking channel: carrier-aided DLL + FLL, replica and correlator outputs"""
+          """GPS tracking channel: carrier-aided DLL + FLL-assisted Costas PLL, replica and correlators"""
 
           def __init__(self, samp_rate=2.048e6, ch=0, dll_gain=0.3, fll_gain=0.05,
-                       lost_cn0=30.0, fll_narrow=0.05, pull_in_ms=300):
+                       lost_cn0=30.0, fll_narrow=0.05, pull_in_ms=300, pll_on=1, pll_bw=25.0,
+                       fll_assist_bw=2.0, lost_hold_ms=1000):
               gr.basic_block.__init__(
                   self, name='GPS tracking channel', in_sig=[np.complex64],
                   out_sig=[np.complex64, np.complex64, np.complex64, np.complex64,
@@ -229,6 +268,17 @@ blocks:
               # fll_narrow is read every ms, so a GRC slider can change it live (callback sets it)
               self.fll_narrow, self.pull_in = float(fll_narrow), int(pull_in_ms)
               self.lost_ratio = 1.0 + 10 ** (lost_cn0 / 10) * 1e-3
+              # Carrier loop after pull-in (all read every ms, so GRC callbacks can change them live):
+              #   pll_on = 1: 2nd-order Costas PLL (noise bandwidth pll_bw Hz) with 1st-order FLL
+              #               assist (fll_assist_bw Hz): locks PHASE, P sits on the I axis.
+              #               Tested on 37-40 dB-Hz signals with a wandering dongle oscillator:
+              #               25 Hz PLL follows the oscillator; the FLL assist must stay weak (2 Hz)
+              #               because its 1 ms discriminator is very noisy at low C/N0 and a 10 Hz
+              #               assist made the PLL slip cycles.
+              #   pll_on = 0: FLL only (gain fll_narrow): locks frequency, P slowly rotates
+              self.pll_on, self.pll_bw, self.fll_assist_bw = int(pll_on), float(pll_bw), float(fll_assist_bw)
+              # lock loss only after C/N0 stays below lost_cn0 for lost_hold_ms (rides out short fades)
+              self.lost_hold_ms = int(lost_hold_ms)
               self.cps0 = 1.023e6 / self.fs
               self.codes = {p: ca_code(p) for p in range(1, 33)}
               self.n_f = np.arange(self.N, dtype=np.float64)
@@ -287,8 +337,10 @@ blocks:
               if time.time() - self.t_print > 2.0:
                   self.t_print = time.time()
                   if self.st is not None:
-                      print('[TRK ch%d] PRN %02d %+6.0f Hz' % (self.ch, self.st['prn'], self.st['f']),
-                            flush=True)
+                      lk = self.st.get('lock')
+                      print('[TRK ch%d] PRN %02d %+6.0f Hz  %s' % (
+                          self.ch, self.st['prn'], self.st['f'],
+                          'FLL' if lk is None or not int(self.pll_on) else 'PLL lock %.2f' % lk), flush=True)
               return gr.WORK_CALLED_PRODUCE
 
           def _start(self, d, s):
@@ -296,7 +348,7 @@ blocks:
               cps = self.cps0 * (1 + f / L1)
               phase = ((s - int(d['s_ref'])) * cps) % 1023
               prn = int(d['prn'])
-              self.st = dict(prn=prn, f=f, f_tab=None, rot=None, theta=0.0, phase=phase,
+              self.st = dict(prn=prn, f=f, theta=0.0, phase=phase, w=None, lock=None, low=0, f_tab=None, rot=None,
                              p_prev=None, pp=None, nn=None, age=0,
                              ncode=self.codes[prn % 32 + 1])
               self._status('assigned', prn)
@@ -309,21 +361,44 @@ blocks:
               pcx = code.take(ip, mode='wrap')
               M[0], M[1], M[2] = pcx[2:], pcx[1:-1], pcx[:-2]
               M[3] = st['ncode'].take(ip[1:-1], mode='wrap')
-              if st['f_tab'] is None or abs(st['f'] - st['f_tab']) > 5.0:
-                  st['f_tab'] = st['f']
-                  st['rot'] = np.exp(-2j * np.pi * st['f_tab'] / self.fs * self.n_f).astype(np.complex64)
-              bb = seg * (st['rot'] * np.complex64(np.exp(-1j * st['theta'])))
-              r = M @ bb.view(np.float32).reshape(N, 2)
-              E, P, L, Nn = r[:, 0] + 1j * r[:, 1]
+              # carrier NCO. The phase ramp table is only rebuilt when f moves > 5 Hz (CPU), but the
+              # phase theta always advances with the EXACT frequency, so the error is at most
+              # 2*pi*5 Hz*1 ms = 1.8 deg within a ms and never accumulates. (An earlier version
+              # advanced theta with the table frequency and rebuilt at 5 Hz: up to 5 Hz of residual
+              # rotation on P, i.e. a smeared constellation.)
+              f_used = st['f']
+              if st['f_tab'] is None or abs(f_used - st['f_tab']) > 5.0:
+                  st['f_tab'] = f_used
+                  st['rot'] = np.exp(-2j * np.pi * f_used / self.fs * self.n_f).astype(np.complex64)
+              bb = seg * (st['rot'] * np.complex64(cmath.exp(-1j * st['theta'])))
+              r = (M @ bb.view(np.float32).reshape(N, 2)).tolist()
+              E, P, L, Nn = [complex(a, b) for a, b in r]        # plain Python: far cheaper than numpy scalars
               aE, aL = abs(E), abs(L)
               err = 0.5 * (aE - aL) / (aE + aL + 1e-20)
+              T = N / self.fs
+              dphi = 0.0                                    # FLL discriminator (rad per T)
               if st['p_prev'] is not None:
-                  z = P * np.conj(st['p_prev'])
+                  z = P * st['p_prev'].conjugate()
                   if z.real != 0.0:
-                      kf = self.kf if st['age'] < self.pull_in else float(self.fll_narrow)
-                      st['f'] += kf * np.arctan(z.imag / z.real) / (2 * np.pi * 1e-3)
+                      dphi = math.atan(z.imag / z.real)     # atan, not atan2: blind to bit flips
               st['p_prev'] = P
-              st['theta'] = (st['theta'] + 2 * np.pi * st['f_tab'] * N / self.fs) % (2 * np.pi)
+              if st['age'] < self.pull_in or not int(self.pll_on):
+                  kf = self.kf if st['age'] < self.pull_in else float(self.fll_narrow)
+                  st['f'] += kf * dphi / (2 * np.pi * T)
+                  st['w'] = None
+              else:
+                  # Costas PLL (2nd order) + FLL assist (1st order), Kaplan & Hegarty style
+                  if st['w'] is None:
+                      st['w'] = 2 * np.pi * st['f']         # start from the FLL's frequency
+                  ep = math.atan(P.imag / P.real) if P.real != 0.0 else 0.0   # Costas: blind to bit flips
+                  wn_p = float(self.pll_bw) / 0.53
+                  wn_f = float(self.fll_assist_bw) / 0.25
+                  st['w'] += T * (wn_p * wn_p * ep + wn_f * dphi / T)
+                  st['f'] = (st['w'] + 1.414 * wn_p * ep) / (2 * np.pi)
+                  a2 = 0.01                                 # PLL lock indicator: narrowband cos(2*phase)
+                  c2 = (P.real ** 2 - P.imag ** 2) / (abs(P) ** 2 + 1e-20)
+                  st['lock'] = c2 if st['lock'] is None else (1 - a2) * st['lock'] + a2 * c2
+              st['theta'] = (st['theta'] + 2 * np.pi * f_used * T) % (2 * np.pi)
               st['phase'] = (st['phase'] + N * cps + self.kd * err) % 1023
               a = 0.02
               pp, nn = abs(P) ** 2, abs(Nn) ** 2
@@ -332,6 +407,10 @@ blocks:
               st['age'] += 1
               rep = M[1]
               if st['age'] > 500 and st['pp'] / st['nn'] < self.lost_ratio:
+                  st['low'] += 1
+              else:
+                  st['low'] = 0
+              if st['low'] > int(self.lost_hold_ms):
                   print('[LOST] PRN %02d on ch%d' % (st['prn'], self.ch), flush=True)
                   self._status('lost', st['prn'])
                   self.st = None
@@ -347,6 +426,10 @@ blocks:
     lost_cn0: '30.0'
     fll_narrow: fll_narrow
     pull_in_ms: '300'
+    pll_on: pll_on
+    pll_bw: pll_bw
+    fll_assist_bw: '2.0'
+    lost_hold_ms: '1000'
   states:
     bus_sink: false
     bus_source: false

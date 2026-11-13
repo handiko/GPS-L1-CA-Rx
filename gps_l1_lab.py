@@ -18,7 +18,6 @@ sys.path.append(os.environ.get('GRC_HIER_PATH', os.path.expanduser('~/.grc_gnura
 from PyQt5 import QtCore
 from gnuradio import analog
 from gnuradio import blocks
-import pmt
 from gnuradio import eng_notation
 from gnuradio import filter
 from gnuradio.filter import firdes
@@ -35,6 +34,8 @@ import gps_l1_lab_decider as decider  # embedded python block
 import gps_l1_lab_navdec as navdec  # embedded python block
 import gps_l1_lab_sched as sched  # embedded python block
 import json
+import osmosdr
+import time
 import sip
 
 
@@ -80,7 +81,7 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         self.decim = decim = 32
         self.threshold = threshold = 3.5
         self.rf_gain = rf_gain = 40.2
-        self.ppm = ppm = 0
+        self.ppm = ppm = 35
         self.park_prn = park_prn = 0
         self.park_khz = park_khz = 0
         self.n_noncoh = n_noncoh = 20
@@ -123,6 +124,20 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         for r in range(1, 2):
             self.top_grid_layout.setRowStretch(r, 1)
         for c in range(0, 4):
+            self.top_grid_layout.setColumnStretch(c, 1)
+        self._rf_gain_range = qtgui.Range(0, 49.6, 0.1, 40.2, 200)
+        self._rf_gain_win = qtgui.RangeWidget(self._rf_gain_range, self.set_rf_gain, "RF gain [dB]", "counter_slider", float, QtCore.Qt.Horizontal)
+        self.top_grid_layout.addWidget(self._rf_gain_win, 0, 0, 1, 1)
+        for r in range(0, 1):
+            self.top_grid_layout.setRowStretch(r, 1)
+        for c in range(0, 1):
+            self.top_grid_layout.setColumnStretch(c, 1)
+        self._ppm_range = qtgui.Range(-100, 100, 1, 35, 200)
+        self._ppm_win = qtgui.RangeWidget(self._ppm_range, self.set_ppm, "Freq corr [ppm]", "counter_slider", float, QtCore.Qt.Horizontal)
+        self.top_grid_layout.addWidget(self._ppm_win, 0, 1, 1, 1)
+        for r in range(0, 1):
+            self.top_grid_layout.setRowStretch(r, 1)
+        for c in range(1, 2):
             self.top_grid_layout.setColumnStretch(c, 1)
         self._park_prn_range = qtgui.Range(0, 32, 1, 0, 200)
         self._park_prn_win = qtgui.RangeWidget(self._park_prn_range, self.set_park_prn, "Park search on PRN (0 = auto)", "counter_slider", int, QtCore.Qt.Horizontal)
@@ -453,35 +468,41 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         for c in range(0, 2):
             self.tabs_grid_layout_3.setColumnStretch(c, 1)
         self.trk3 = gps_track_channel(
+            samp_rate=samp_rate,
             ch=3,
             dll_gain=0.3,
             fll_gain=0.05,
+            pll_on=1,
+            pll_bw=25,
             fll_narrow=0.05,
-            samp_rate=samp_rate,
         )
         self.trk2 = gps_track_channel(
+            samp_rate=samp_rate,
             ch=2,
             dll_gain=0.3,
             fll_gain=0.05,
+            pll_on=1,
+            pll_bw=25,
             fll_narrow=0.05,
-            samp_rate=samp_rate,
         )
         self.trk1 = gps_track_channel(
+            samp_rate=samp_rate,
             ch=1,
             dll_gain=0.3,
             fll_gain=0.05,
+            pll_on=1,
+            pll_bw=25,
             fll_narrow=0.05,
-            samp_rate=samp_rate,
         )
         self.trk0 = gps_track_channel(
+            samp_rate=samp_rate,
             ch=0,
             dll_gain=0.3,
             fll_gain=0.05,
+            pll_on=1,
+            pll_bw=25,
             fll_narrow=0.05,
-            samp_rate=samp_rate,
         )
-        self.src_ci16 = blocks.file_source(gr.sizeof_short*1, base_path + '.sigmf-data', True, 0, 0)
-        self.src_ci16.set_begin_tag(pmt.PMT_NIL)
         self.spec = qtgui.freq_sink_c(
             512, #size
             window.WIN_BLACKMAN_hARRIS, #wintype
@@ -529,26 +550,21 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         for c in range(0, 2):
             self.tabs_grid_layout_0.setColumnStretch(c, 1)
         self.sched = sched.blk(samp_rate=samp_rate, m_max=m_max, n_noncoh=n_noncoh, warmup_ms=500, park_prn=park_prn, park_khz=park_khz)
-        self.scale_ci16 = blocks.multiply_const_cc(1.0/32768)
-        self._rf_gain_range = qtgui.Range(0, 49.6, 0.1, 40.2, 200)
-        self._rf_gain_win = qtgui.RangeWidget(self._rf_gain_range, self.set_rf_gain, "RF gain [dB]", "counter_slider", float, QtCore.Qt.Horizontal)
-        self.top_grid_layout.addWidget(self._rf_gain_win, 0, 0, 1, 1)
-        for r in range(0, 1):
-            self.top_grid_layout.setRowStretch(r, 1)
-        for c in range(0, 1):
-            self.top_grid_layout.setColumnStretch(c, 1)
-        self.rational_resampler_xxx_0 = filter.rational_resampler_ccc(
-                interpolation=int(samp_rate),
-                decimation=int(file_samp_rate),
-                taps=[],
-                fractional_bw=0)
-        self._ppm_range = qtgui.Range(-100, 100, 1, 0, 200)
-        self._ppm_win = qtgui.RangeWidget(self._ppm_range, self.set_ppm, "Freq corr [ppm]", "counter_slider", float, QtCore.Qt.Horizontal)
-        self.top_grid_layout.addWidget(self._ppm_win, 0, 1, 1, 1)
-        for r in range(0, 1):
-            self.top_grid_layout.setRowStretch(r, 1)
-        for c in range(1, 2):
-            self.top_grid_layout.setColumnStretch(c, 1)
+        self.rtlsdr_source_0 = osmosdr.source(
+            args="numchan=" + str(1) + " " + ""
+        )
+        self.rtlsdr_source_0.set_time_unknown_pps(osmosdr.time_spec_t())
+        self.rtlsdr_source_0.set_sample_rate(samp_rate)
+        self.rtlsdr_source_0.set_center_freq(center_freq, 0)
+        self.rtlsdr_source_0.set_freq_corr(ppm, 0)
+        self.rtlsdr_source_0.set_dc_offset_mode(0, 0)
+        self.rtlsdr_source_0.set_iq_balance_mode(0, 0)
+        self.rtlsdr_source_0.set_gain_mode(False, 0)
+        self.rtlsdr_source_0.set_gain(rf_gain, 0)
+        self.rtlsdr_source_0.set_if_gain(20, 0)
+        self.rtlsdr_source_0.set_bb_gain(20, 0)
+        self.rtlsdr_source_0.set_antenna('', 0)
+        self.rtlsdr_source_0.set_bandwidth(0, 0)
         self.p_iq = qtgui.time_sink_c(
             1000, #size
             1000, #samp_rate
@@ -629,7 +645,6 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
             self.tabs_grid_layout_3.setRowStretch(r, 1)
         for c in range(0, 2):
             self.tabs_grid_layout_3.setColumnStretch(c, 1)
-        self.ishort_to_complex = blocks.interleaved_short_to_complex(False, False,1.0)
         self.freq = qtgui.time_sink_f(
             5000, #size
             1000, #samp_rate
@@ -891,7 +906,6 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
             self.tabs_grid_layout_2.setRowStretch(r, 1)
         for c in range(1, 2):
             self.tabs_grid_layout_2.setColumnStretch(c, 1)
-        self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
         self.b2f = blocks.char_to_float(1, 1)
         self.agc = analog.agc_cc((2e-5), 1.0, 1.0, 65536)
         self.acq_dopp = qtgui.time_sink_f(
@@ -1106,7 +1120,6 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         self.connect((self.agc, 0), (self.trk2, 0))
         self.connect((self.agc, 0), (self.trk3, 0))
         self.connect((self.b2f, 0), (self.ts_bits, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.dcblk, 0))
         self.connect((self.dcblk, 0), (self.agc, 0))
         self.connect((self.dec_c0, 0), (self.spec, 1))
         self.connect((self.dec_c0, 0), (self.wf_c0, 0))
@@ -1115,7 +1128,6 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         self.connect((self.dec_c3, 0), (self.spec, 4))
         self.connect((self.dec_raw, 0), (self.spec, 0))
         self.connect((self.dec_raw, 0), (self.wf_raw, 0))
-        self.connect((self.ishort_to_complex, 0), (self.scale_ci16, 0))
         self.connect((self.me, 0), (self.epl, 0))
         self.connect((self.ml, 0), (self.epl, 2))
         self.connect((self.mp, 0), (self.epl, 1))
@@ -1132,11 +1144,9 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         self.connect((self.nb3, 0), (self.navdec, 3))
         self.connect((self.nb3, 1), (self.ts_soft, 3))
         self.connect((self.nb3, 2), (self.vs_bitsync, 3))
-        self.connect((self.rational_resampler_xxx_0, 0), (self.blocks_throttle2_0, 0))
-        self.connect((self.scale_ci16, 0), (self.rational_resampler_xxx_0, 0))
+        self.connect((self.rtlsdr_source_0, 0), (self.dcblk, 0))
         self.connect((self.sched, 0), (self.acq0, 1))
         self.connect((self.sched, 0), (self.acq1, 1))
-        self.connect((self.src_ci16, 0), (self.ishort_to_complex, 0))
         self.connect((self.trk0, 6), (self.cn0, 0))
         self.connect((self.trk0, 1), (self.const_p, 0))
         self.connect((self.trk0, 0), (self.dec_c0, 0))
@@ -1187,7 +1197,6 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
     def set_base_path(self, base_path):
         self.base_path = base_path
         self.set_meta(json.load(open(self.base_path + '.sigmf-meta')))
-        self.src_ci16.open(self.base_path + '.sigmf-data', True)
 
     def get_samp_rate(self):
         return self.samp_rate
@@ -1201,7 +1210,7 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
         self.acq0.set_samp_rate(self.samp_rate)
         self.acq1.set_samp_rate(self.samp_rate)
         self.acq_corr.set_samp_rate(self.samp_rate/1.023e6)
-        self.blocks_throttle2_0.set_sample_rate(self.samp_rate)
+        self.rtlsdr_source_0.set_sample_rate(self.samp_rate)
         self.trk0.set_samp_rate(self.samp_rate)
         self.trk1.set_samp_rate(self.samp_rate)
         self.trk2.set_samp_rate(self.samp_rate)
@@ -1234,12 +1243,14 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
 
     def set_rf_gain(self, rf_gain):
         self.rf_gain = rf_gain
+        self.rtlsdr_source_0.set_gain(self.rf_gain, 0)
 
     def get_ppm(self):
         return self.ppm
 
     def set_ppm(self, ppm):
         self.ppm = ppm
+        self.rtlsdr_source_0.set_freq_corr(self.ppm, 0)
 
     def get_park_prn(self):
         return self.park_prn
@@ -1323,6 +1334,7 @@ class gps_l1_lab(gr.top_block, Qt.QWidget):
 
     def set_center_freq(self, center_freq):
         self.center_freq = center_freq
+        self.rtlsdr_source_0.set_center_freq(self.center_freq, 0)
 
     def get_N(self):
         return self.N
