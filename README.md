@@ -4,6 +4,11 @@
 
 [Code repo here](https://github.com/handiko/GPS-L1-CA-Rx)
 
+![](despread.png)
+
+![](symbol.png)
+![](performance.png)
+
 ---
 
 ## Why I did this
