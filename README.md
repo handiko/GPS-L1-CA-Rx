@@ -6,7 +6,7 @@
 
 ![](despread.png)
 
-![](symbol.png)
+![](symbols.png)
 ![](performance.png)
 
 ---
