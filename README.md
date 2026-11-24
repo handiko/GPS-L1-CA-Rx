@@ -452,3 +452,7 @@ There's a lot of room for improvement!
 - **E. D. Kaplan and C. J. Hegarty**, *Understanding GPS/GNSS*, for the theory behind it.
 - **GNSS-SDR** and **GNSS-SDRLIB**, the serious open-source receivers, to check my numbers against.
 - **Claude (Anthropic)**, for helping write and test the code and this document.
+
+## Other SDR Receiver Project(s)
+- [DMR Voice Receiver](https://handiko.github.io/DMR-Voice-Receiver/)
+- [TETRA Rx](https://handiko.github.io/TETRA-Rx/)
