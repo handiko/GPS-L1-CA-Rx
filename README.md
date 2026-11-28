@@ -453,7 +453,4 @@ There's a lot of room for improvement!
 - **GNSS-SDR** and **GNSS-SDRLIB**, the serious open-source receivers, to check my numbers against.
 - **Claude (Anthropic)**, for helping write and test the code and this document.
 
-## Other SDR Receiver Projects
-- [DMR Voice Receiver](https://handiko.github.io/DMR-Voice-Receiver/)
-- [TETRA Rx](https://handiko.github.io/TETRA-Rx/)
-- [GNU Radio LoRa APRS  Rx](https://handiko.github.io/LoRa-APRS-RX-GNU-Radio/)
+__[GNU RADIO PROJECT INDEX](https://handiko.github.io/GNU-Radio-Projects-Index/)__
